@@ -1,0 +1,4 @@
+1. speedup cardillo.math with njit
+2. speed up rigid body kinematics by removing common_type and decorate kinematic functions e.g. q_dot with @staticmmethod @njit
+3. speed rod rod _eval and _deval with @njit
+4. dense matrix better than CooMatrix, when constructing the matrix every step. Fill data according to sparcity map would be better.
