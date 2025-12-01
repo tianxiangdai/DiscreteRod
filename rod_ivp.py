@@ -30,7 +30,6 @@ material_model = Simo1986(
     np.array([GJ, EI, EI]),
 )
 
-nelement = 20
 Q = DiscreteRod.straight_configuration(nelement, L)
 rod = DiscreteRod(
     cross_section,
@@ -42,13 +41,10 @@ rod = DiscreteRod(
 nodes = rod.nodes
 
 system = System()
-# force = B_Moment(
-#     lambda t: min(1, t / 10) * np.array([0, 0, EI / L * 2 * np.pi]) * (t<1), nodes[-1]
-# )
 
 @njit(cache=True)
 def f_fun(t):
-    return min(1, t / 10) * np.array([0, -5, 0]) * (t<1)
+    return (0.5 - np.abs(t - 0.5)) * np.array([0, -1, 0]) * (t<1)
     
 force = Force(f_fun, nodes[-1])
 system.add(*nodes)
@@ -119,5 +115,3 @@ def dydt(t, y):
     dydt = _dydt(y, split_index, h_part, W_c, rod.nnode)
     return dydt
 
-
-y0 = np.concatenate([system.q0, system.u0, system.la_c0], dtype=np.float64)
