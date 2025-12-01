@@ -104,9 +104,13 @@ class RigidBody:
     @njit(cache=True)
     def q_dot_q(t, q, u):
         q_dot_q = np.zeros((7, 7), dtype=np.float64)
-        q_dot_q[3:, 3:] = np.einsum(
-            "ijk,j->ik", T_SO3_inv_quat_P(q[3:], normalize=False), u[3:]
-        )
+        # q_dot_q[3:, 3:] = np.einsum(
+        #     "ijk,j->ik", T_SO3_inv_quat_P(q[3:], normalize=False), u[3:]
+        # )
+        T = T_SO3_inv_quat_P(q[3:], normalize=False)
+        
+        for i in range(3):
+            q_dot_q[i+3:, 3:] = T[i].T@u[3:]
         return q_dot_q
 
     @staticmethod

@@ -4,22 +4,73 @@ from time import perf_counter
 
 from matplotlib import pyplot as plt
 
-from cardillo.solver import Solution
+from cardillo.solver import Solution, Newton
 from cardillo.visualization import Renderer
 from tdcrobots.math import quat2axis_angle
 
-from rod_ivp import dydt, event, system, split_index
+from rod_ode import _dydt, _dydt_rateform, _normalize_quat, system, rod, force, system_statics
 
-##########################
+rateform = False
+
 ti = system.t0
 tf = 10
-h = 0.0008
-
+h = 0.0009
 t_span = (ti, tf)
-y0 = np.concatenate([system.q0, system.u0, system.la_c0], dtype=np.float64)
 
-# warm up numba
-dydt(ti, y0)
+###############
+# rate form ODE
+###############
+split_index = np.array([system.nq, system.nq + system.nu])
+
+def normalize_quat(t, y):
+    q_end, u_end = split_index
+    q, u = y[:q_end], y[q_end:u_end]
+    # q, u = system.step_callback(t, q, u)
+    _normalize_quat(q)
+    # set true forces
+    # la_c = y[u_end :]
+    # la_c_true = rod.la_c(t, q, u)
+    # y[u_end :] = la_c_true
+    return 1
+
+###############
+# rate form ODE
+###############
+def dydt_rateform(t, y):
+    q = y[:split_index[0]]
+    
+    W_c = rod.W_c(t, q)    
+    h_part = force.h(t, q[-7:], q[-6:])
+    
+    dydt = _dydt_rateform(t, y, split_index, h_part, W_c, rod.nnode)
+    return dydt
+
+###############
+# rate form ODE
+###############
+def dydt(t, y):
+    q_end, u_end = split_index
+    q, u = y[:q_end], y[q_end:u_end]
+    
+    W_c = rod.W_c(t, q)    
+    la_c = rod.la_c(t, q, u)
+    h = W_c @ la_c
+    h[-6:] += force.h(t, q[-7:], q[-6:])
+    
+    dydt = _dydt(t, y, split_index, h, rod.nnode)
+    return dydt
+###################
+# initial condition
+###################
+solver = Newton(system_statics)
+sol = solver.solve()
+if rateform:
+    dydt = dydt_rateform
+    y0 = np.concatenate([sol.q[-1], sol.u[-1], sol.la_c[-1]], dtype=np.float64)
+else:
+    dydt = dydt
+    y0 = np.concatenate([sol.q[-1], sol.u[-1]], dtype=np.float64)
+##########################
 
 
 def runge_kutta_4_vector(dydt, y0, t0, tf, h):
@@ -38,6 +89,7 @@ def runge_kutta_4_vector(dydt, y0, t0, tf, h):
         k4 = h * dydt(t[i] + h, y[i] + k3)
 
         y[i+1] = y[i] + (k1 + 2*k2 + 2*k3 + k4) / 6
+        normalize_quat(t, y[i+1])
         t[i+1] = t[i] + h
 
     return t, y
@@ -45,19 +97,19 @@ def runge_kutta_4_vector(dydt, y0, t0, tf, h):
 
 ############################
 print("calculating........")
-prof = cProfile.Profile()
-prof.enable()
+# prof = cProfile.Profile()
+# prof.enable()
 
-t_sim0 = perf_counter()
+t_sim = perf_counter()
 
 # Solve system
 t_eval, y = runge_kutta_4_vector(dydt, y0, ti, tf, h)
 
-print(f"{tf - ti} seconds simulation takes {perf_counter() - t_sim0:.2f} seconds!")
+print(f"{tf - ti} seconds simulation takes {perf_counter() - t_sim:.2f} seconds!")
 print("end")
 
-prof.disable()
-prof.dump_stats("prof.prof")
+# prof.disable()
+# prof.dump_stats("prof.prof")
 #########################
 q, u, la_c = np.split(y, split_index, axis=1)
 # plot result
@@ -70,7 +122,7 @@ plt.grid()
 plt.subplot(3,1,3)
 plt.plot(t_eval, [quat2axis_angle(np.array(qi))[2] for qi in q[:, -4:]])
 plt.grid()
-plt.show(block=False)
+plt.show(block=True)
 
 # render solution
 step = int(len(q)//1000)
