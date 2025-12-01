@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit
 from vtk import VTK_VERTEX
 
-from .math import (
+from tdcrobots.math import (
     cross3,
     ax2skew,
     norm,

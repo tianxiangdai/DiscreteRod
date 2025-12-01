@@ -52,7 +52,7 @@ plt.grid()
 plt.subplot(2,1,2)
 plt.plot(t_eval, q[-6, :])
 plt.grid()
-plt.show()
+plt.show(block=False)
 
 sol = Solution(system, t_eval, q.T, u.T)
 ren = Renderer(system)

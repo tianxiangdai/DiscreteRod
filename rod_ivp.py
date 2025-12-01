@@ -7,8 +7,9 @@ from cardillo.rods import CircularCrossSection, CrossSectionInertias, Simo1986
 from cardillo import System
 from cardillo.forces import B_Moment, Force
 
+from tdcrobots.math import norm, T_SO3_inv_quat
+
 from discreterod.rod import DiscreteRod
-from discreterod.math import norm, T_SO3_inv_quat
 
 nelement = 20
 radius = 0.03
