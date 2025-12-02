@@ -80,7 +80,7 @@ class DiscreteRod(RodExportBase):
         self.set_reference_strains(Q)
 
     def set_reference_strains(self, Q):
-        self.lis = np.array(
+        self.J = np.array(
             [
                 norm(Q[7 * (i + 1) : 7 * (i + 1) + 3] - Q[7 * i : 7 * i + 3])
                 for i in range(self.nelement)
@@ -90,7 +90,7 @@ class DiscreteRod(RodExportBase):
         self.B_Kappa0 = []
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            A_IB, B_Gamma0, B_Kappa0 = _eval(Q[elDOF], self.lis[el])
+            A_IB, B_Gamma0, B_Kappa0 = _eval(Q[elDOF], self.J[el])
             self.B_Gamma0.append(B_Gamma0)
             self.B_Kappa0.append(B_Kappa0)
         self.B_Gamma0 = np.array(self.B_Gamma0)
@@ -169,11 +169,9 @@ class DiscreteRod(RodExportBase):
             q,
             self.elDOF,
             self.elDOF_la_c,
-            self.lis,
+            self.J,
             self.B_Gamma0,
             self.B_Kappa0,
-            self.C_n_inv,
-            self.C_m_inv,
             self.__c_la_c_el_inv,
             self.nla_c,
         )
@@ -186,7 +184,7 @@ class DiscreteRod(RodExportBase):
             c[elDOF_la_c] = _c_el(
                 qe,
                 la_c[elDOF_la_c],
-                self.lis[el],
+                self.J[el],
                 self.B_Gamma0[el],
                 self.B_Kappa0[el],
                 self.C_n_inv,
@@ -209,7 +207,7 @@ class DiscreteRod(RodExportBase):
                         np.hstack([np.zeros((3, 3)), self.C_m_inv]),
                     )
                 )
-                * self.lis[el]
+                * self.J[el]
             )
             self.__c_la_c[elDOF_la_c, elDOF_la_c] = c_la_c_el
             self.__c_la_c_el_inv.append(np.linalg.inv(c_la_c_el))
@@ -225,16 +223,21 @@ class DiscreteRod(RodExportBase):
 
     def c_el_qe(self, qe, la_ce, el):
         c_el_qe = np.empty((6, 14), dtype=np.float64)
-        A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(qe, self.lis[el])
+        A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(qe, self.J[el])
 
-        c_el_qe[:3] = -B_Gamma_qe * self.lis[el]
-        c_el_qe[3:] = -B_Kappa_qe * self.lis[el]
+        c_el_qe[:3] = -B_Gamma_qe * self.J[el]
+        c_el_qe[3:] = -B_Kappa_qe * self.J[el]
 
         return c_el_qe
 
     def W_c(self, t, q):
         return _W_c(
-            self.elDOF, self.elDOF_u, self.elDOF_la_c, self.lis, q, self._nu, self.nla_c
+            self.elDOF, self.elDOF_u, self.elDOF_la_c, self.J, q, self._nu, self.nla_c
+        )
+        
+    def W_la_c(self, t, q):
+        return _W_la_c(
+            self.elDOF, self.elDOF_u, self.elDOF_la_c, self.J, q, self._nu, self.B_Gamma0, self.B_Kappa0, self.__c_la_c_el_inv
         )
 
     def Wla_c_q(self, t, q, la_c):
@@ -248,35 +251,35 @@ class DiscreteRod(RodExportBase):
 
     def Wla_c_el_qe(self, qe, la_ce, el):
         Wla_c_el_qe = np.empty((12, 14), dtype=np.float64)
-        A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(qe, self.lis[el])
-        li = self.lis[el]
+        A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(qe, self.J[el])
+        Je = self.J[el]
         B_n = la_ce[:3]
         B_m = la_ce[3:]
         Wla_c_el_qe[:3] = np.einsum("ijk,j", A_IB_qe, B_n)
         Wla_c_el_qe[3:6] = Wla_c_el_qe[9:] = (
-            -0.5 * ax2skew(B_n) * li @ B_Gamma_qe - 0.5 * ax2skew(B_m) * li @ B_Kappa_qe
+            -0.5 * ax2skew(B_n) * Je @ B_Gamma_qe - 0.5 * ax2skew(B_m) * Je @ B_Kappa_qe
         )
         Wla_c_el_qe[6:9] = -Wla_c_el_qe[:3]
         return Wla_c_el_qe
 
     # @cachedmethod(
     #     lambda self: self._deval_cache,
-    #     key=lambda self, qe, li: hashkey(*qe, li),
+    #     key=lambda self, qe, Je: hashkey(*qe, Je),
     # )
-    def _deval(self, qe, li):
+    def _deval(self, qe, Je):
         r_OC0 = qe[:3]
         P0 = qe[3:7]
 
         r_OC1 = qe[7:10]
         P1 = qe[10:]
 
-        r_OC_s = (r_OC1 - r_OC0) / li
-        r_OC_s_qe = self.__dr_OC_qe / li
+        r_OC_s = (r_OC1 - r_OC0) / Je
+        r_OC_s_qe = self.__dr_OC_qe / Je
 
         P = (P0 + P1) / 2
-        P_s = (P1 - P0) / li
+        P_s = (P1 - P0) / Je
         P_qe = (self.__P0_qe + self.__P1_qe) / 2
-        P_s_qe = (self.__P1_qe - self.__P0_qe) / li
+        P_s_qe = (self.__P1_qe - self.__P0_qe) / Je
 
         A_IB = Exp_SO3_quat(P, normalize=True)
         A_IB_qe = Exp_SO3_quat_p(P, normalize=True) @ P_qe
@@ -325,24 +328,26 @@ def _la_c(
     q,
     elDOF,
     elDOF_la_c,
-    lis,
+    J,
     B_Gamma0,
     B_Kappa0,
-    C_n_inv,
-    C_m_inv,
     c_la_c_el_inv,
     nla_c,
 ):
     nelement = len(elDOF)
     la_c = np.empty(nla_c, dtype=np.float64)
 
-    zeros6 = np.zeros(6, dtype=np.float64)
 
     for el in range(nelement):
-        c_e = _c_el(
-            q[elDOF[el]], zeros6, lis[el], B_Gamma0[el], B_Kappa0[el], C_n_inv, C_m_inv
-        )
-        la_loc = -c_la_c_el_inv[el] @ c_e
+        qe = q[elDOF[el]]
+        Je = J[el]
+        
+        c_el = np.empty(6, dtype=np.float64)
+        A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
+
+        c_el[:3] = - (B_Gamma - B_Gamma0[el]) * Je
+        c_el[3:] = - (B_Kappa - B_Kappa0[el]) * Je
+        la_loc = -c_la_c_el_inv[el] @ c_el
 
         la_c[elDOF_la_c[el]] = la_loc
 
@@ -350,20 +355,20 @@ def _la_c(
 
 
 @njit(cache=True)
-def _c_el(qe, la_ce, li, B_Gamma0, B_Kappa0, C_n_inv, C_m_inv):
+def _c_el(qe, la_ce, Je, B_Gamma0, B_Kappa0, C_n_inv, C_m_inv):
     c_el = np.empty(6, dtype=np.float64)
-    A_IB, B_Gamma, B_Kappa = _eval(qe, li)
+    A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
     #
     B_n = la_ce[:3]
     B_m = la_ce[3:]
 
-    c_el[:3] = (C_n_inv @ B_n - (B_Gamma - B_Gamma0)) * li
-    c_el[3:] = (C_m_inv @ B_m - (B_Kappa - B_Kappa0)) * li
+    c_el[:3] = (C_n_inv @ B_n - (B_Gamma - B_Gamma0)) * Je
+    c_el[3:] = (C_m_inv @ B_m - (B_Kappa - B_Kappa0)) * Je
     return c_el
 
 
 @njit(cache=True)
-def _W_c(elDOF, elDOF_u, elDOF_la_c, lis, q, nu, nla_c):
+def _W_c(elDOF, elDOF_u, elDOF_la_c, J, q, nu, nla_c):
     W_c = np.zeros((nu, nla_c))
     nelement = len(elDOF)
     for el in range(nelement):
@@ -372,24 +377,25 @@ def _W_c(elDOF, elDOF_u, elDOF_la_c, lis, q, nu, nla_c):
         dof_la_c = elDOF_la_c[el]
 
         qe = q[dof]
-        li = lis[el]
+        Je = J[el]
 
         u0 = dof_u[0]
         u1 = dof_u[-1] + 1
         l0 = dof_la_c[0]
         l1 = dof_la_c[-1] + 1
+        
+        A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
 
-        W_c[u0:u1, l0:l1] += _W_c_el(qe, li)
+        W_c[u0:u1, l0:l1] += _W_c_el(Je, A_IB, B_Gamma, B_Kappa)
 
     return W_c
 
 @njit(cache=True)
-def _W_c_el(qe, li):
+def _W_c_el(Je, A_IB, B_Gamma, B_Kappa):
     W_c_el = np.zeros((12, 6))
-    A_IB, B_Gamma, B_Kappa = _eval(qe, li)
     #
-    s1 = 0.5 * ax2skew(B_Gamma) * li
-    s2 = 0.5 * ax2skew(B_Kappa) * li
+    s1 = 0.5 * ax2skew(B_Gamma) * Je
+    s2 = 0.5 * ax2skew(B_Kappa) * Je
     W_c_el[:3, :3] = A_IB
     W_c_el[3:6, :3] = s1
     W_c_el[3:6, 3:] = eye3 + s2
@@ -400,17 +406,41 @@ def _W_c_el(qe, li):
     
 
 @njit(cache=True)
-def _eval(qe, li):
+def _W_la_c(elDOF, elDOF_u, elDOF_la_c, J, q, nu, B_Gamma0, B_Kappa0, c_la_c_el_inv):
+    h = np.zeros(nu)
+    nelement = len(elDOF)
+    for el in range(nelement):
+        dof_u = elDOF_u[el]
+
+        qe = q[elDOF[el]]
+        Je = J[el]
+
+        u0 = dof_u[0]
+        u1 = dof_u[-1] + 1        
+
+        c_el = np.empty(6, dtype=np.float64)
+        A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
+
+        c_el[:3] = - (B_Gamma - B_Gamma0[el]) * Je
+        c_el[3:] = - (B_Kappa - B_Kappa0[el]) * Je
+        la_c_el = -c_la_c_el_inv[el] @ c_el
+        
+        h[u0:u1] += _W_c_el(Je, A_IB, B_Gamma, B_Kappa) @ la_c_el
+
+    return h
+
+@njit(cache=True)
+def _eval(qe, Je):
     r_OC0 = qe[:3]
     P0 = qe[3:7]
 
     r_OC1 = qe[7:10]
     P1 = qe[10:]
 
-    r_OC_s = (r_OC1 - r_OC0) / li
+    r_OC_s = (r_OC1 - r_OC0) / Je
 
     P = (P0 + P1) / 2
-    P_s = (P1 - P0) / li
+    P_s = (P1 - P0) / Je
 
     A_IB = Exp_SO3_quat(P, normalize=True)
     #

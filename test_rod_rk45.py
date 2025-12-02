@@ -53,9 +53,10 @@ def dydt(t, y):
     q_end, u_end = split_index
     q, u = y[:q_end], y[q_end:u_end]
     
-    W_c = rod.W_c(t, q)    
-    la_c = rod.la_c(t, q, u)
-    h = W_c @ la_c
+    # W_c = rod.W_c(t, q)    
+    # la_c = rod.la_c(t, q, u)
+    # h = W_c @ la_c
+    h = rod.W_la_c(t, q)
     h[-6:] += force.h(t, q[-7:], q[-6:])
     
     dydt = _dydt(t, y, split_index, h, rod.nnode)
@@ -72,8 +73,7 @@ else:
     dydt = dydt
     y0 = np.concatenate([sol.q[-1], sol.u[-1]], dtype=np.float64)
 ##########################
-
-
+dydt(0.0, y0) # warm up
 print("calculating........")
 # prof = cProfile.Profile()
 # prof.enable()

@@ -12,7 +12,7 @@ from tdcrobots.math import norm, T_SO3_inv_quat
 
 from discreterod.rod import DiscreteRod
 
-nelement = 10
+nelement = 20
 radius = 0.03
 L = 1
 density = 0.4 / (L * np.pi * radius**2)

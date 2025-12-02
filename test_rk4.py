@@ -10,7 +10,7 @@ from tdcrobots.math import quat2axis_angle
 
 from rod_ode import _dydt, _dydt_rateform, _normalize_quat, system, rod, force, system_statics
 
-rateform = False
+rateform = True
 
 ti = system.t0
 tf = 10
@@ -52,9 +52,10 @@ def dydt(t, y):
     q_end, u_end = split_index
     q, u = y[:q_end], y[q_end:u_end]
     
-    W_c = rod.W_c(t, q)    
-    la_c = rod.la_c(t, q, u)
-    h = W_c @ la_c
+    # W_c = rod.W_c(t, q)    
+    # la_c = rod.la_c(t, q, u)
+    # h = W_c @ la_c
+    h = rod.W_la_c(t, q)
     h[-6:] += force.h(t, q[-7:], q[-6:])
     
     dydt = _dydt(t, y, split_index, h, rod.nnode)
@@ -96,6 +97,7 @@ def runge_kutta_4_vector(dydt, y0, t0, tf, h):
 
 
 ############################
+dydt(0.0, y0) # warm up
 print("calculating........")
 # prof = cProfile.Profile()
 # prof.enable()
