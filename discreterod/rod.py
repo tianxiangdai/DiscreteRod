@@ -15,8 +15,9 @@ from tdcrobots.math import (
 
 from cardillo.rods._base import RodExportBase
 from cardillo.utility.coo_matrix import CooMatrix
-from .rigid_body import RigidBody
 from cardillo.rods import CrossSectionInertias
+
+from tdcrobots.discrete import RigidBody
 
 eye3 = np.eye(3)
 

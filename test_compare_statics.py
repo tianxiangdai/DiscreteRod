@@ -58,7 +58,7 @@ system1.add(rc)
 system1.assemble()
 
 t1 = 1
-solver = Newton(system1, n_load_steps=10)
+solver = Newton(system1, n_load_steps=100)
 sol = solver.solve()
 
 t, q = sol.t, sol.q
