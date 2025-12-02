@@ -151,8 +151,8 @@ class DiscreteRod(RodExportBase):
         self.uDOF = np.concatenate([n.uDOF for n in self.nodes])
         self.nq_element = len(self.nodes[0].q0) * 2
         self.nu_element = len(self.nodes[0].u0) * 2
-        self.nu = len(self.u0)
-        self.nq = len(self.q0)
+        self._nu = len(self.u0)
+        self._nq = len(self.q0)
         self._c_la_c_coo()
 
     def get_element_nodes(self, xi):
@@ -216,7 +216,7 @@ class DiscreteRod(RodExportBase):
         self.__c_la_c_el_inv = np.array(self.__c_la_c_el_inv)
 
     def c_q(self, t, q, u, la_c):
-        coo = CooMatrix((self.nla_c, self.nq))
+        coo = CooMatrix((self.nla_c, self._nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_la_c = self.elDOF_la_c[el]
@@ -234,11 +234,11 @@ class DiscreteRod(RodExportBase):
 
     def W_c(self, t, q):
         return _W_c(
-            self.elDOF, self.elDOF_u, self.elDOF_la_c, self.lis, q, self.nu, self.nla_c
+            self.elDOF, self.elDOF_u, self.elDOF_la_c, self.lis, q, self._nu, self.nla_c
         )
 
     def Wla_c_q(self, t, q, la_c):
-        coo = CooMatrix((self.nu, self.nq))
+        coo = CooMatrix((self._nu, self._nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]

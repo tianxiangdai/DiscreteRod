@@ -12,7 +12,7 @@ from tdcrobots.math import norm, T_SO3_inv_quat
 
 from discreterod.rod import DiscreteRod
 
-nelement = 20
+nelement = 10
 radius = 0.03
 L = 1
 density = 0.4 / (L * np.pi * radius**2)
@@ -70,9 +70,12 @@ system = System()
 @njit(cache=True)
 def f_fun(t):
     return np.zeros(3, np.float64)
+    # return np.array([0, -0.5, 0])
     # return (0.5 - np.abs(t - 0.5)) * np.array([0, -1, 0]) * (t<=1)
     
 force = Force(f_fun, nodes[-1])
+rb = RigidConnection(system.origin, nodes[0])
+system.add(rb)
 system.add(*nodes)
 system.add(rod)
 system.add(force)
