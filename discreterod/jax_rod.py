@@ -240,6 +240,13 @@ class DiscreteRod(RodExportBase):
         _W_c_els = _W_c_el_batch(self.J, A_IB, B_Gamma, B_Kappa)
         self._W_c_coo.data[:] = np.asarray(_W_c_els).ravel()
         return self._W_c_coo
+    
+    def W_c_dense(self, t, q):
+        A_IB, B_Gamma, B_Kappa = self._eval(q)
+        W_c_els = np.asarray(_W_c_el_batch(self.J, A_IB, B_Gamma, B_Kappa))
+        return _W_c(
+            self.elDOF, self.elDOF_u, self.elDOF_la_c, self._nu, self.nla_c, W_c_els
+        )
         
     def Wla_c_q(self, t, q, la_c):
         A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(q)
@@ -248,10 +255,10 @@ class DiscreteRod(RodExportBase):
         return self._Wla_c_q_coo
     
     
-    @cachedmethod(
-        lambda self: self._eval_cache,
-        key=lambda self, q: hashkey(*q),
-    )
+    # @cachedmethod(
+    #     lambda self: self._eval_cache,
+    #     key=lambda self, q: hashkey(*q),
+    # )
     def _eval(self, q):
         A_IB, B_Gamma, B_Kappa = _eval_batch(q[self.elDOF], self.J)
         A_IB = np.asarray(A_IB)
@@ -292,6 +299,25 @@ class DiscreteRod(RodExportBase):
         P = (1 - alpha) * P0 + alpha * P1
         return Exp_SO3_quat(P, normalize=True)
 
+
+@njit(cache=True)
+def _W_c(elDOF, elDOF_u, elDOF_la_c, nu, nla_c, W_c_els):
+    W_c = np.zeros((nu, nla_c))
+    nelement = len(elDOF)
+    for el in range(nelement):
+        dof_u = elDOF_u[el]
+        dof_la_c = elDOF_la_c[el]
+
+
+        u0 = dof_u[0]
+        u1 = dof_u[-1] + 1
+        l0 = dof_la_c[0]
+        l1 = dof_la_c[-1] + 1
+        
+
+        W_c[u0:u1, l0:l1] += W_c_els[el]
+
+    return W_c
 
 # @njit(cache=True)
 def _la_c(

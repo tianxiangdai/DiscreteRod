@@ -8,7 +8,7 @@ from cardillo.solver import Solution, Newton
 from cardillo.visualization import Renderer
 from tdcrobots.math import quat2axis_angle
 
-from rod_ode import _dydt, _dydt_rateform, _normalize_quat, system, rod, force, system_statics
+from rod_ode_jax import _dydt, _dydt_rateform, _normalize_quat, system, rod, force, system_statics
 
 rateform = True
 
@@ -40,7 +40,7 @@ def dydt_rateform(t, y):
     # print(t)
     q = y[:split_index[0]]
     
-    W_c = rod.W_c(t, q)
+    W_c = rod.W_c_dense(t, q)
     h_part = force.h(t, q[-7:], q[-6:])
     
     dydt = _dydt_rateform(t, y, split_index, h_part, W_c, rod.nnode)

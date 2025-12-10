@@ -8,6 +8,7 @@ from jax import numpy as jnp
 
 def benchmark(inputs, fun_cardillo, fun_numba, fun_jax):
     # cardillo
+    fun_cardillo(inputs[0]) # warm up
     t0 = perf_counter()
     for el in inputs:
         fun_cardillo(el)

@@ -10,7 +10,7 @@ from cardillo.constraints import RigidConnection
 
 from tdcrobots.math import norm, T_SO3_inv_quat
 
-from discreterod.rod import DiscreteRod
+from discreterod.jax_rod import DiscreteRod
 
 nelement = 40
 radius = 0.03
