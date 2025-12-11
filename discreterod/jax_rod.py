@@ -6,7 +6,7 @@ from array import array
 
 from jax import vmap, jit, jacfwd
 from jax import numpy as jnp
-from tdcrobots.math import (
+from cardillo.math_numba import (
     norm,
     ax2skew,
     Log_SO3_quat,
@@ -23,8 +23,8 @@ from cardillo.rods import CrossSectionInertias
 from tdcrobots.discrete import RigidBody
 
 
-from discreterod import jax_math
-from .utility import BlockCooMatrix
+from cardillo import math_jax
+from cardillo.utility.coo_matrix import CooMatrix
 
 eye3 = jnp.eye(3)
 
@@ -154,9 +154,9 @@ class DiscreteRod(RodExportBase):
         self._nq = len(self.q0)
         self._c_la_c_coo()
         # allocate memery
-        self._c_q_coo = BlockCooMatrix((self.nla_c, self._nq))
-        self._W_c_coo = BlockCooMatrix((self._nu, self.nla_c))       
-        self._Wla_c_q_coo = BlockCooMatrix((self._nu, self._nq))
+        self._c_q_coo = CooMatrix((self.nla_c, self._nq))
+        self._W_c_coo = CooMatrix((self._nu, self.nla_c))       
+        self._Wla_c_q_coo = CooMatrix((self._nu, self._nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
@@ -231,7 +231,7 @@ class DiscreteRod(RodExportBase):
         A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(q)
         for el in range(self.nelement):
             value = _c_el_qe(self.L[el], B_Gamma_qe[el], B_Kappa_qe[el])
-            self._c_q_coo.set_value(el, value)
+            self._c_q_coo.set_allocated(el, value)
         
         return self._c_q_coo
 
@@ -360,8 +360,8 @@ def _Wla_c_el_qe_jax(la_c, Le, A_IB_qe, B_Gamma_qe, B_Kappa_qe):
     W0 = (B_n[None, :] @ A_IB_qe).squeeze(axis=1)
 
     common = (
-        -0.5 * (jax_math.ax2skew(B_n) * Le @ B_Gamma_qe)
-        -0.5 * (jax_math.ax2skew(B_m) * Le @ B_Kappa_qe)
+        -0.5 * (math_jax.ax2skew(B_n) * Le @ B_Gamma_qe)
+        -0.5 * (math_jax.ax2skew(B_m) * Le @ B_Kappa_qe)
     )
 
     W = jnp.vstack([
@@ -395,8 +395,8 @@ def _c_el_qe(L, B_Gamma_qe, B_Kappa_qe):
 
 @jit
 def _W_c_el_jax(L, A_IB, B_Gamma, B_Kappa):    
-    s1 = 0.5 * jax_math.ax2skew(B_Gamma) * L
-    s2 = 0.5 * jax_math.ax2skew(B_Kappa) * L
+    s1 = 0.5 * math_jax.ax2skew(B_Gamma) * L
+    s2 = 0.5 * math_jax.ax2skew(B_Kappa) * L
     
     W_c_el = jnp.zeros((12, 6))
     #
@@ -424,9 +424,9 @@ def _eval_jax(qe, Le):
     P = (P0 + P1) / 2
     P_s = (P1 - P0) / Le
 
-    A_IB = jax_math.Exp_SO3_quat(P, normalize=True)
+    A_IB = math_jax.Exp_SO3_quat(P, normalize=True)
     #
-    T = jax_math.T_SO3_quat(P, normalize=True)
+    T = math_jax.T_SO3_quat(P, normalize=True)
     B_Gamma = A_IB.T @ r_OC_s
 
     B_Kappa = T @ P_s

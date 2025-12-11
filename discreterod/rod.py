@@ -3,7 +3,7 @@ from cachetools.keys import hashkey
 import numpy as np
 from numba import njit
 
-from tdcrobots.math import (
+from cardillo.math_numba import (
     norm,
     ax2skew,
     Log_SO3_quat,

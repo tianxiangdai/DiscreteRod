@@ -10,7 +10,7 @@ from cardillo.forces import B_Moment
 
 # from tdcrobots.rods.discrete_rod import DiscreteRod
 from cardillo.system import System
-from discreterod.rod import DiscreteRod
+from discreterod.jax_rod import DiscreteRod
 
 nelement = 20
 radius = 0.03

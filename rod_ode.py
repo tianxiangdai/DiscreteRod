@@ -8,7 +8,7 @@ from cardillo import System
 from cardillo.forces import B_Moment, Force
 from cardillo.constraints import RigidConnection
 
-from tdcrobots.math import norm, T_SO3_inv_quat
+from cardillo.math_numba import norm, T_SO3_inv_quat
 
 from discreterod.rod import DiscreteRod
 

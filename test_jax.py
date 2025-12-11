@@ -34,20 +34,20 @@ def benchmark(inputs, fun_cardillo, fun_numba, fun_jax):
     print(f"time Jax:\t{t_jax:.3e},\t{t_cardillo/t_jax:.2f}")
     
 
-from cardillo import math as cardillo_math
-from tdcrobots import math as numba_math
-from discreterod import jax_math
+from cardillo import math as math_cardillo
+from cardillo import math_jax
+from cardillo import math_numba
 
 
 P = np.random.random((100, 4))
 print("Test A")
-benchmark(P, cardillo_math.Exp_SO3_quat, numba_math.Exp_SO3_quat, jax_math.Exp_SO3_quat)
+benchmark(P, math_cardillo.Exp_SO3_quat, math_numba.Exp_SO3_quat, math_jax.Exp_SO3_quat)
 print("\nTest A_P")
-benchmark(P, cardillo_math.Exp_SO3_quat, numba_math.Exp_SO3_quat, jax_math.Exp_SO3_quat)
+benchmark(P, math_cardillo.Exp_SO3_quat, math_numba.Exp_SO3_quat, math_jax.Exp_SO3_quat)
 print("Test T")
-benchmark(P, cardillo_math.T_SO3_quat, numba_math.T_SO3_quat, jax_math.T_SO3_quat)
+benchmark(P, math_cardillo.T_SO3_quat, math_numba.T_SO3_quat, math_jax.T_SO3_quat)
 print("\nTest T_P")
-benchmark(P, cardillo_math.T_SO3_quat_P, numba_math.T_SO3_quat_P, jax_math.T_SO3_quat_P)
+benchmark(P, math_cardillo.T_SO3_quat_P, math_numba.T_SO3_quat_P, math_jax.T_SO3_quat_P)
 print("\nTest T_inv")
-benchmark(P, cardillo_math.T_SO3_inv_quat, numba_math.T_SO3_inv_quat, jax_math.T_SO3_inv_quat)
+benchmark(P, math_cardillo.T_SO3_inv_quat, math_numba.T_SO3_inv_quat, math_jax.T_SO3_inv_quat)
 

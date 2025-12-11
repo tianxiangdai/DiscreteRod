@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 from cardillo.solver import Solution, Newton
 from cardillo.visualization import Renderer
-from tdcrobots.math import quat2axis_angle
+from cardillo.math_numba import quat2axis_angle
 
 from rod_ode import _dydt, _dydt_rateform, _normalize_quat, system, rod, force, system_statics
 
