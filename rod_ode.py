@@ -8,9 +8,9 @@ from cardillo import System
 from cardillo.forces import B_Moment, Force
 from cardillo.constraints import RigidConnection
 
-from tdcrobots.math import norm, T_SO3_inv_quat
+from cardillo.math_numba import norm, T_SO3_inv_quat
 
-from discreterod.rod import DiscreteRod
+from discreterod.jax_rod import DiscreteRod
 
 nelement = 20
 radius = 0.03
@@ -45,8 +45,8 @@ nodes = rod.nodes
 system_statics = System()
 
 f_fun_statics = np.array([0, -0.5, 0])
-    
-force = Force(lambda t: t*f_fun_statics, nodes[-1])
+
+force = Force(lambda t: t * f_fun_statics, nodes[-1])
 rb = RigidConnection(system_statics.origin, nodes[0])
 system_statics.add(rb)
 system_statics.add(*nodes)
@@ -67,12 +67,14 @@ nodes = rod.nodes
 
 system = System()
 
+
 @njit(cache=True)
 def f_fun(t):
     return np.zeros(3, np.float64)
     # return np.array([0, -0.5, 0])
     # return (0.5 - np.abs(t - 0.5)) * np.array([0, -1, 0]) * (t<=1)
-    
+
+
 force = Force(f_fun, nodes[-1])
 rb = RigidConnection(system.origin, nodes[0])
 system.add(rb)
@@ -89,11 +91,10 @@ C_inv = 1 / system.c_la_c().toarray().diagonal()
 @njit(cache=True)
 def _normalize_quat(q):
     # normalize quaternion
-    for i in range(len(q)//7):
-        d1 = 7*i+3
-        d2 = 7*i+7
+    for i in range(len(q) // 7):
+        d1 = 7 * i + 3
+        d2 = 7 * i + 7
         q[d1:d2] /= norm(q[d1:d2])
-    
 
 
 # equation of motion with jit
@@ -105,17 +106,20 @@ def _dydt_rateform(t, y, split_index, h_part, W_c, nnode):
     # allocate memory
     y_dot = np.zeros_like(y)
     q_dot, u_dot, la_c_dot = y_dot[:q_end], y_dot[q_end:u_end], y_dot[u_end:]
-    
+
     # q_dot
     for i in range(nnode):
-        q_dot[7*i:7*i+3] = u[6*i:6*i+3]
-        q_dot[7*i+3:7*i+7] = T_SO3_inv_quat(q[7*i+3:7*i+7], normalize=False) @ u[6*i+3:6*i+6]
-    
+        q_dot[7 * i : 7 * i + 3] = u[6 * i : 6 * i + 3]
+        q_dot[7 * i + 3 : 7 * i + 7] = (
+            T_SO3_inv_quat(q[7 * i + 3 : 7 * i + 7], normalize=False)
+            @ u[6 * i + 3 : 6 * i + 6]
+        )
+
     h = W_c @ la_c
     h[-6:] += h_part
     u_dot[:] = M_inv @ h
-    
-    la_c_dot[:] = -(W_c.T @ u) 
+
+    la_c_dot[:] = -(W_c.T @ u)
     la_c_dot *= C_inv
 
     # fix the first rod node
@@ -134,12 +138,15 @@ def _dydt(t, y, split_index, h, nnode):
     # allocate memory
     y_dot = np.zeros_like(y)
     q_dot, u_dot = y_dot[:q_end], y_dot[q_end:]
-    
+
     # q_dot
     for i in range(nnode):
-        q_dot[7*i:7*i+3] = u[6*i:6*i+3]
-        q_dot[7*i+3:7*i+7] = T_SO3_inv_quat(q[7*i+3:7*i+7], normalize=False) @ u[6*i+3:6*i+6]
-    
+        q_dot[7 * i : 7 * i + 3] = u[6 * i : 6 * i + 3]
+        q_dot[7 * i + 3 : 7 * i + 7] = (
+            T_SO3_inv_quat(q[7 * i + 3 : 7 * i + 7], normalize=False)
+            @ u[6 * i + 3 : 6 * i + 6]
+        )
+
     u_dot[:] = M_inv @ h
 
     # fix the first rod node

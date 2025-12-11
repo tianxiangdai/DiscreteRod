@@ -2,7 +2,6 @@ import jax.numpy as jnp
 from jax import jit, vmap
 
 
-
 @jit
 def norm(a: jnp.ndarray) -> float:
     """Euclidean norm of an array of arbitrary length."""
@@ -17,8 +16,10 @@ def ax2skew(a: jnp.ndarray) -> jnp.ndarray:
                       [a[2],  0,    -a[0]],
                       [-a[1], a[0], 0    ]], dtype=jnp.float32)
     # fmt: on
-    
+
+
 ax2skew_batch = jit(vmap(ax2skew))
+
 
 @jit
 def ax2skew_squared(a: jnp.ndarray) -> jnp.ndarray:
@@ -32,6 +33,7 @@ def ax2skew_squared(a: jnp.ndarray) -> jnp.ndarray:
     ], dtype=jnp.float32)
     # fmt: on
 
+
 @jit
 def skew2ax(A: jnp.ndarray) -> jnp.ndarray:
     """Computes the axial vector from a skew symmetric 3x3 matrix."""
@@ -40,6 +42,7 @@ def skew2ax(A: jnp.ndarray) -> jnp.ndarray:
                             A[0, 2] - A[2, 0], 
                             A[1, 0] - A[0, 1]], dtype=jnp.float32)
     # fmt: on
+
 
 @jit
 def ax2skew_a() -> jnp.ndarray:
@@ -57,6 +60,7 @@ def ax2skew_a() -> jnp.ndarray:
     A = A.at[0, 1, 2].set(-1)
     A = A.at[1, 0, 2].set(1)
     return A
+
 
 @jit
 def skew2ax_A() -> jnp.ndarray:
@@ -76,6 +80,7 @@ def skew2ax_A() -> jnp.ndarray:
     A = A.at[2, 1, 0].set(0.5)
     A = A.at[2, 0, 1].set(-0.5)
     return A
+
 
 @jit
 def cross3(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:

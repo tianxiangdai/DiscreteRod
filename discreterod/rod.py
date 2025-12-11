@@ -3,7 +3,7 @@ from cachetools.keys import hashkey
 import numpy as np
 from numba import njit
 
-from tdcrobots.math import (
+from cardillo.math_numba import (
     norm,
     ax2skew,
     Log_SO3_quat,
@@ -17,7 +17,7 @@ from cardillo.rods._base import RodExportBase
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.rods import CrossSectionInertias
 
-from tdcrobots.discrete import RigidBody
+from cardillo.discrete import RigidBody
 
 eye3 = np.eye(3)
 
@@ -235,10 +235,18 @@ class DiscreteRod(RodExportBase):
         return _W_c(
             self.elDOF, self.elDOF_u, self.elDOF_la_c, self.J, q, self._nu, self.nla_c
         )
-        
+
     def W_la_c(self, t, q):
         return _W_la_c(
-            self.elDOF, self.elDOF_u, self.elDOF_la_c, self.J, q, self._nu, self.B_Gamma0, self.B_Kappa0, self.__c_la_c_el_inv
+            self.elDOF,
+            self.elDOF_u,
+            self.elDOF_la_c,
+            self.J,
+            q,
+            self._nu,
+            self.B_Gamma0,
+            self.B_Kappa0,
+            self.__c_la_c_el_inv,
         )
 
     def Wla_c_q(self, t, q, la_c):
@@ -338,16 +346,15 @@ def _la_c(
     nelement = len(elDOF)
     la_c = np.empty(nla_c, dtype=np.float64)
 
-
     for el in range(nelement):
         qe = q[elDOF[el]]
         Je = J[el]
-        
+
         c_el = np.empty(6, dtype=np.float64)
         A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
 
-        c_el[:3] = - (B_Gamma - B_Gamma0[el]) * Je
-        c_el[3:] = - (B_Kappa - B_Kappa0[el]) * Je
+        c_el[:3] = -(B_Gamma - B_Gamma0[el]) * Je
+        c_el[3:] = -(B_Kappa - B_Kappa0[el]) * Je
         la_loc = -c_la_c_el_inv[el] @ c_el
 
         la_c[elDOF_la_c[el]] = la_loc
@@ -384,12 +391,13 @@ def _W_c(elDOF, elDOF_u, elDOF_la_c, J, q, nu, nla_c):
         u1 = dof_u[-1] + 1
         l0 = dof_la_c[0]
         l1 = dof_la_c[-1] + 1
-        
+
         A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
 
         W_c[u0:u1, l0:l1] += _W_c_el(Je, A_IB, B_Gamma, B_Kappa)
 
     return W_c
+
 
 @njit(cache=True)
 def _W_c_el(Je, A_IB, B_Gamma, B_Kappa):
@@ -404,7 +412,7 @@ def _W_c_el(Je, A_IB, B_Gamma, B_Kappa):
     W_c_el[9:, :3] = s1
     W_c_el[9:, 3:] = -eye3 + s2
     return W_c_el
-    
+
 
 @njit(cache=True)
 def _W_la_c(elDOF, elDOF_u, elDOF_la_c, J, q, nu, B_Gamma0, B_Kappa0, c_la_c_el_inv):
@@ -417,18 +425,19 @@ def _W_la_c(elDOF, elDOF_u, elDOF_la_c, J, q, nu, B_Gamma0, B_Kappa0, c_la_c_el_
         Je = J[el]
 
         u0 = dof_u[0]
-        u1 = dof_u[-1] + 1        
+        u1 = dof_u[-1] + 1
 
         c_el = np.empty(6, dtype=np.float64)
         A_IB, B_Gamma, B_Kappa = _eval(qe, Je)
 
-        c_el[:3] = - (B_Gamma - B_Gamma0[el]) * Je
-        c_el[3:] = - (B_Kappa - B_Kappa0[el]) * Je
+        c_el[:3] = -(B_Gamma - B_Gamma0[el]) * Je
+        c_el[3:] = -(B_Kappa - B_Kappa0[el]) * Je
         la_c_el = -c_la_c_el_inv[el] @ c_el
-        
+
         h[u0:u1] += _W_c_el(Je, A_IB, B_Gamma, B_Kappa) @ la_c_el
 
     return h
+
 
 @njit(cache=True)
 def _eval(qe, Je):

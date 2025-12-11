@@ -8,12 +8,9 @@ from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton, ScipyDAE, DualStormerVerlet
 from cardillo.forces import B_Moment
 
-# from tdcrobots.rods.discrete_rod import DiscreteRod
-from tdcrobots.rods import RodDamping
 from cardillo.system import System
-from tdcrobots.rods.force_line_distributed import Force_line_distributed
 
-from discreterod.rod import DiscreteRod
+from discreterod.jax_rod import DiscreteRod
 
 nelement = 20
 radius = 0.03
@@ -47,8 +44,8 @@ rod = DiscreteRod(
 )
 nodes = rod.nodes
 
-system1 = System()    
-force = B_Moment(lambda t:  t * np.array([0, 0, EI / L * 2 * np.pi]), nodes[-1])
+system1 = System()
+force = B_Moment(lambda t: t * np.array([0, 0, EI / L * 2 * np.pi]), nodes[-1])
 rc = RigidConnection(system1.origin, nodes[0])
 
 system1.add(*nodes)
@@ -70,7 +67,13 @@ r_OC1s = np.array([q[-1, n.qDOF[:3]] for n in nodes])
 ###########
 Rod = make_CosseratRod(polynomial_degree=1)
 Q = Rod.straight_configuration(nelement, L)
-rod = Rod(cross_section, material_model, nelement, Q=Q, cross_section_inertias=cross_section_inertias)
+rod = Rod(
+    cross_section,
+    material_model,
+    nelement,
+    Q=Q,
+    cross_section_inertias=cross_section_inertias,
+)
 
 system2 = System()
 force = B_Moment(lambda t: t * np.array([0, 0, EI / L * 2 * np.pi]), rod, xi=1)
@@ -88,6 +91,8 @@ t, q = sol.t, sol.q
 r_OC2s = q[-1, rod.qDOF][rod.nodalDOF_r]
 
 print(np.allclose(r_OC1s, r_OC2s))
+
+print(np.linalg.norm(r_OC1s - r_OC2s, ord=np.inf))
 plt.plot(r_OC1s[:, 0], r_OC1s[:, 1], "-xr")
 plt.plot(r_OC2s[:, 0], r_OC2s[:, 1], "-b.")
 plt.axis("equal")

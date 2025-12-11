@@ -13,7 +13,6 @@ angle_singular = 0.0
 eye3 = jnp.eye(3, dtype=jnp.float32)
 
 
-
 def Spurrier(R: np.ndarray) -> np.ndarray:
     """
     Spurrier's algorithm to extract the unit quaternion from a given rotation
@@ -66,6 +65,7 @@ def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
     else:
         return np.zeros(3)
 
+
 @jit
 def Exp_SO3_quat(P, normalize: bool = True):
     """Exponential mapping defined by (unit) quaternion, see 
@@ -80,10 +80,13 @@ def Exp_SO3_quat(P, normalize: bool = True):
     p0, p = P[0], P[1:]
     P2 = P @ P
 
-    return jnp.where(normalize,
-                     eye3 + (2.0 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p)),
-                     (p0**2 - p @ p) * eye3 + jnp.outer(p, 2.0 * p) + 2.0 * p0 * ax2skew(p))
-        
+    return jnp.where(
+        normalize,
+        eye3 + (2.0 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p)),
+        (p0**2 - p @ p) * eye3 + jnp.outer(p, 2.0 * p) + 2.0 * p0 * ax2skew(p),
+    )
+
+
 Exp_SO3_quat_batch = jit(vmap(Exp_SO3_quat))
 
 Exp_SO3_quat_p = jit(jacfwd(Exp_SO3_quat, argnums=0))
@@ -103,9 +106,12 @@ def T_SO3_quat(P, normalize=True):
     """
     p0, p = P[0], P[1:]
 
-    return jnp.where(normalize,
-                     (2 / (P @ P)) * jnp.hstack((-p[:, None], p0 * eye3 - ax2skew(p))),
-                     2 * (P @ P) * jnp.hstack((-p[:, None], p0 * eye3 - ax2skew(p))))
+    return jnp.where(
+        normalize,
+        (2 / (P @ P)) * jnp.hstack((-p[:, None], p0 * eye3 - ax2skew(p))),
+        2 * (P @ P) * jnp.hstack((-p[:, None], p0 * eye3 - ax2skew(p))),
+    )
+
 
 T_SO3_quat_batch = jit(vmap(T_SO3_quat))
 
@@ -126,10 +132,13 @@ def T_SO3_inv_quat(P, normalize=True):
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
     p0, p = P[0], P[1:]
-    return jnp.where(normalize,
-                     0.5 * jnp.vstack((-p, p0 * eye3 + ax2skew(p))),
-                     1 / (2 * (P @ P) ** 2) * jnp.vstack((-p, p0 * eye3 + ax2skew(p))))
-    
+    return jnp.where(
+        normalize,
+        0.5 * jnp.vstack((-p, p0 * eye3 + ax2skew(p))),
+        1 / (2 * (P @ P) ** 2) * jnp.vstack((-p, p0 * eye3 + ax2skew(p))),
+    )
+
+
 T_SO3_inv_quat_batch = jit(vmap(T_SO3_inv_quat))
 
 T_SO3_inv_quat_P = jit(jacfwd(T_SO3_inv_quat, argnums=0))
