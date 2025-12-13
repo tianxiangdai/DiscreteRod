@@ -70,15 +70,8 @@ class DiscreteRod(RodExportBase):
             node.nodalDOF_p_u = nodalDOF_u[3:]
 
         # allocate memery
-        _eval_cache = LRUCache(maxsize=self.nnode + 20)
+        self._eval_cache = LRUCache(maxsize=self.nnode + 20)
         self._deval_cache = LRUCache(maxsize=self.nnode + 20)
-
-        self.__dr_OC_qe = np.hstack(
-            (-np.eye(3), np.zeros((3, 4)), np.eye(3), np.zeros((3, 4)))
-        )
-        self.__P0_qe = np.hstack((np.zeros((4, 3)), np.eye(4), np.zeros((4, 7))))
-        self.__P1_qe = np.hstack((np.zeros((4, 10)), np.eye(4)))
-        # self.__W_c_el = np.zeros((12, 6))
 
         self.set_reference_strains(Q)
 
