@@ -45,7 +45,7 @@ class DiscreteRod(RodExportBase):
 
         self.nnode = len(self.nodes)
         self.nelement = self.nnode - 1
-        self.nla_c = self.nelement * 6
+        self.nla_c = self.nelement * 12
         self.xis = np.linspace(0, 1, self.nnode)
         for xi, node in zip(self.xis, self.nodes):
             node.xi = xi
@@ -58,7 +58,7 @@ class DiscreteRod(RodExportBase):
             [np.arange(6 * el, 6 * (el + 2)) for el in range(self.nelement)]
         )
         self.elDOF_la_c = np.array(
-            [np.arange(6 * el, 6 * (el + 1)) for el in range(self.nelement)]
+            [np.arange(12 * el, 12 * (el + 1)) for el in range(self.nelement)]
         )
         for i, node in enumerate(self.nodes):
             nodalDOF = np.arange(7 * i, 7 * (i + 1))
@@ -209,21 +209,18 @@ class DiscreteRod(RodExportBase):
         self.__c_la_c_el_inv = []
         for el in range(self.nelement):
             elDOF_la_c = self.elDOF_la_c[el]
-            c_la_c_el = (
-                np.vstack(
-                    (
-                        np.hstack([self.C_n_inv, np.zeros((3, 3))]),
-                        np.hstack([np.zeros((3, 3)), self.C_m_inv]),
-                    )
-                )
-                * self.L[el]
-            )
+            c_la_c_el = np.zeros((12, 12), dtype=np.float32)
+            c_la_c_el[:3, :3] = self.C_n_inv
+            c_la_c_el[3:6, 3:6] = self.C_m_inv
+            c_la_c_el[6:9, 6:9] = self.C_n_inv
+            c_la_c_el[9:, 9:] = self.C_m_inv
+            c_la_c_el *= self.L[el]
             self.__c_la_c[elDOF_la_c, elDOF_la_c] = c_la_c_el
             self.__c_la_c_el_inv.append(np.linalg.inv(c_la_c_el))
         self.__c_la_c_el_inv = np.array(self.__c_la_c_el_inv)
 
     def c_q(self, t, q, u, la_c):
-        A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(q)
+        _, _, _, _, B_Gamma_qe, B_Kappa_qe = self._deval(q)
         for el in range(self.nelement):
             value = _c_el_qe(self.L[el], B_Gamma_qe[el], B_Kappa_qe[el])
             self._c_q_coo.set_allocated(el, value)
@@ -250,7 +247,7 @@ class DiscreteRod(RodExportBase):
         )
 
     def Wla_c_q(self, t, q, la_c):
-        A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(q)
+        _, _, _, A_IB_qe, B_Gamma_qe, B_Kappa_qe = self._deval(q)
         W = _Wla_c_el_qe_batch(
             la_c[self.elDOF_la_c], self.L, A_IB_qe, B_Gamma_qe, B_Kappa_qe
         )
@@ -273,11 +270,14 @@ class DiscreteRod(RodExportBase):
     #     key=lambda self, q: hashkey(*q),
     # )
     def _deval(self, q):
-        A_IB_qe, B_Gamma_qe, B_Kappa_qe = _deval_batch(q[self.elDOF], self.L)
+        A_IB, B_Gamma, B_Kappa, A_IB_qe, B_Gamma_qe, B_Kappa_qe = _deval_batch(q[self.elDOF], self.L)
+        A_IB = np.asarray(A_IB)
+        B_Gamma = np.asarray(B_Gamma)
+        B_Kappa = np.asarray(B_Kappa)
         A_IB_qe = np.asarray(A_IB_qe)
         B_Gamma_qe = np.asarray(B_Gamma_qe)
         B_Kappa_qe = np.asarray(B_Kappa_qe)
-        return A_IB_qe, B_Gamma_qe, B_Kappa_qe
+        return A_IB, B_Gamma, B_Kappa, A_IB_qe, B_Gamma_qe, B_Kappa_qe
 
     def r_OP(self, t, qe, xi, B_r_CP=np.zeros(3, dtype=float)):
         n0, n1 = self.get_element_nodes(xi)
@@ -319,13 +319,13 @@ def _la_c(
     B_Kappa = np.asarray(B_Kappa)
 
     for el in range(nelement):
-        qe = q[elDOF[el]]
         Le = L[el]
 
-        c_el = np.empty(6, dtype=np.float32)
+        c_el = np.empty(12, dtype=np.float32)
 
         c_el[:3] = -(B_Gamma[el] - B_Gamma0[el]) * Le
-        c_el[3:] = -(B_Kappa[el] - B_Kappa0[el]) * Le
+        c_el[3:6] = -(B_Kappa[el] - B_Kappa0[el]) * Le
+        # TODO: add damping
         la_loc = -c_la_c_el_inv[el] @ c_el
 
         la_c[elDOF_la_c[el]] = la_loc
@@ -353,21 +353,23 @@ _Wla_c_el_qe_batch = jit(vmap(_Wla_c_el_qe_jax))
 
 @njit(cache=True)
 def _c_el(la_c, L, B_Gamma0, B_Kappa0, C_n_inv, C_m_inv, B_Gamma, B_Kappa):
-    c_el = np.empty(6, dtype=np.float32)
+    c_el = np.empty(12, dtype=np.float32)
     #
     B_n = la_c[:3]
-    B_m = la_c[3:]
+    B_m = la_c[3:6]
 
     c_el[:3] = (C_n_inv @ B_n - (B_Gamma - B_Gamma0)) * L
-    c_el[3:] = (C_m_inv @ B_m - (B_Kappa - B_Kappa0)) * L
+    c_el[3:6] = (C_m_inv @ B_m - (B_Kappa - B_Kappa0)) * L
+    # TODO:add damping
     return c_el
 
 
 @njit(cache=True)
 def _c_el_qe(L, B_Gamma_qe, B_Kappa_qe):
-    c_el_qe = np.empty((6, 14), dtype=np.float32)
+    c_el_qe = np.empty((12, 14), dtype=np.float32)
     c_el_qe[:3] = -B_Gamma_qe * L
-    c_el_qe[3:] = -B_Kappa_qe * L
+    c_el_qe[3:6] = -B_Kappa_qe * L    
+    # TODO:add damping
     return c_el_qe
 
 
@@ -376,14 +378,15 @@ def _W_c_el_jax(L, A_IB, B_Gamma, B_Kappa):
     s1 = 0.5 * math_jax.ax2skew(B_Gamma) * L
     s2 = 0.5 * math_jax.ax2skew(B_Kappa) * L
 
-    W_c_el = jnp.zeros((12, 6))
+    W_c_el = jnp.zeros((12, 12))
     #
     W_c_el = W_c_el.at[:3, :3].set(A_IB)
     W_c_el = W_c_el.at[3:6, :3].set(s1)
-    W_c_el = W_c_el.at[3:6, 3:].set(eye3 + s2)
+    W_c_el = W_c_el.at[3:6, 3:6].set(eye3 + s2)
     W_c_el = W_c_el.at[6:9, :3].set(-A_IB)
     W_c_el = W_c_el.at[9:, :3].set(s1)
-    W_c_el = W_c_el.at[9:, 3:].set(-eye3 + s2)
+    W_c_el = W_c_el.at[9:, 3:6].set(-eye3 + s2)
+    # TODO:add damping
     return W_c_el
 
 
@@ -403,7 +406,7 @@ def _Wla_c(elDOF, elDOF_u, elDOF_la_c, L, q, nu, B_Gamma0, B_Kappa0, c_la_c_el_i
         u0 = dof_u[0]
         u1 = dof_u[-1] + 1
 
-        c_el = np.empty(6, dtype=np.float64)
+        c_el = np.empty(6, dtype=np.float32)
         A_IB, B_Gamma, B_Kappa = _eval(qe, Le)
 
         c_el[:3] = -(B_Gamma - B_Gamma0[el]) * Le
@@ -473,7 +476,47 @@ def _eval_jax(qe, Le):
     B_Kappa = T @ P_s
     return A_IB, B_Gamma, B_Kappa
 
+@jit
+def _deval(qe, Le):
+    r_OC0 = qe[:3]
+    P0 = qe[3:7]
+
+    r_OC1 = qe[7:10]
+    P1 = qe[10:]
+
+    r_OC_s = (r_OC1 - r_OC0) / Le
+    r_OC_s_qe = jnp.hstack(
+            (-jnp.eye(3), jnp.zeros((3, 4)), jnp.eye(3), jnp.zeros((3, 4)))
+        ) / Le
+
+    P = (P0 + P1) / 2
+    P_s = (P1 - P0) / Le
+    P_qe = jnp.hstack((jnp.zeros((4, 3)), jnp.eye(4), jnp.zeros((4, 3)), jnp.eye(4))) / 2
+    P_s_qe = jnp.hstack((jnp.zeros((4, 3)), -jnp.eye(4), jnp.zeros((4, 3)), jnp.eye(4))) / Le
+
+    A_IB = math_jax.Exp_SO3_quat(P, normalize=True)
+    A_IB_qe = math_jax.Exp_SO3_quat_p(P, normalize=True) @ P_qe
+    #
+    T = math_jax.T_SO3_quat(P, normalize=True)
+    B_Gamma = A_IB.T @ r_OC_s
+    B_Gamma_qe = (A_IB_qe.T @ r_OC_s).T + A_IB.T @ r_OC_s_qe
+    # B_Gamma_qe = jnp.einsum("k,kij", r_OC_s, A_IB_qe) + A_IB.T @ r_OC_s_qe
+
+    B_Kappa = T @ P_s
+    B_Kappa_qe = (
+        jnp.squeeze(P_s[None, :] @ math_jax.T_SO3_quat_P(P, normalize=True), axis=1)
+        # jnp.einsum(
+        #     "ijk,j->ik",
+        #     math_jax.T_SO3_quat_P(P, normalize=True),
+        #     P_s,
+        # )
+        @ P_qe
+        + T @ P_s_qe
+    )
+    # return A_IB, B_Gamma, B_Kappa, r_OC_s_qe, A_IB_qe, B_Gamma_qe, B_Kappa_qe
+    return A_IB, B_Gamma, B_Kappa, A_IB_qe, B_Gamma_qe, B_Kappa_qe
 
 _eval_batch = jit(vmap(_eval_jax))
-_deval_jax = jit(jacfwd(_eval_jax, argnums=0))
-_deval_batch = jit(vmap(jacfwd(_eval_jax, argnums=0)))
+# _deval_jax = jit(jacfwd(_eval_jax, argnums=0))
+# _deval_batch = jit(vmap(jacfwd(_eval_jax, argnums=0)))
+_deval_batch = jit(vmap(_deval))
