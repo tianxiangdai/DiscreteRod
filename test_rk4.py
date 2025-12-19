@@ -63,10 +63,10 @@ def dydt(t, y):
     q_end, u_end = split_index
     q, u = y[:q_end], y[q_end:u_end]
 
-    # W_c = rod.W_c(t, q)
-    # la_c = rod.la_c(t, q, u)
-    # h = W_c @ la_c
-    h = rod.Wla_c(t, q)
+    W_c = rod.W_c(t, q).asformat("csr")
+    la_c = rod.la_c(t, q, u)
+    h = W_c @ la_c
+    # h = rod.Wla_c(t, q)
     h[-6:] += force.h(t, q[-7:], q[-6:])
 
     dydt = _dydt(t, y, split_index, h, rod.nnode)
